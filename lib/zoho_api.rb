@@ -33,16 +33,18 @@ module ZohoApi
     end
 
     def add_record(module_name, fields_values_hash)
+      # puts "zoho_api.rb:add_record()"
       x = REXML::Document.new
       element = x.add_element module_name
       row = element.add_element 'row', {'no' => '1'}
       fields_values_hash.each_pair { |k, v| add_field(row, k, v, module_name) }
       r = self.class.post(create_url(module_name, 'insertRecords'),
                           :query => {:newFormat => 1, :authtoken => @auth_token,
-                                     :scope => 'crmapi', :xmlData => x, :wfTrigger => 'true'},
+                                     :scope => 'crmapi', :xmlData => x, :wfTrigger => 'true', :version => 4, :duplicateCheck => 2},
                           :headers => {'Content-length' => '0'})
       check_for_errors(r)
       x_r = REXML::Document.new(r.body).elements.to_a('//recorddetail')
+      x_r = REXML::Document.new(r.body).elements.to_a('//details') if x_r.empty?
       to_hash(x_r, module_name)[0]
     end
 
@@ -55,12 +57,17 @@ module ZohoApi
         fields_values_hash.each_pair { |k, v| add_field(row, k, v, module_name) }
       end
 
+      # puts "==============================================="
+      # puts x
+      # puts "==============================================="
+
       r = self.class.post(create_url(module_name, 'insertRecords'),
                           :query => {:newFormat => 1, :authtoken => @auth_token,
-                                     :scope => 'crmapi', :xmlData => x, :wfTrigger => 'true'},
+                                     :scope => 'crmapi', :xmlData => x, :wfTrigger => 'true', :version => 4, :duplicateCheck => 2},
                           :headers => {'Content-length' => '0'})
       check_for_errors(r)
       x_r = REXML::Document.new(r.body).elements.to_a('//recorddetail')
+      x_r = REXML::Document.new(r.body).elements.to_a('//details') if x_r.empty?
       to_hash(x_r, module_name)[0]
     end
 
@@ -80,6 +87,7 @@ module ZohoApi
     end
 
     def check_for_errors(response)
+      # puts "zoho_api.rb:check_for_errors()"
       raise(RuntimeError, "Web service call failed with #{response.code}") unless response.code == 200
       x = REXML::Document.new(response.body)
 
@@ -87,10 +95,16 @@ module ZohoApi
       # code under the success tag in this case
       code = REXML::XPath.first(x, '//success/code') || code = REXML::XPath.first(x, '//code')
 
+      # 2000 = Record Added Successfully => OK
+      # 2001 = Record Updated Successfully => OK
+      # 2002 = Record Already Exists => OK
       # 4422 code is no records returned, not really an error
       # TODO: find out what 5000 is
       # 4800 code is returned when building an association. i.e Adding a product to a lead. Also this doesn't return a message
-      raise(RuntimeError, "Zoho Error Code #{code.text}: #{REXML::XPath.first(x, '//message').text}.") unless code.nil? || ['4422', '5000', '4800'].index(code.text)
+      unless code.nil? || ['2000', '2001', '2002', '4422', '5000', '4800'].index(code.text)
+        msg = REXML::XPath.first(x, '//message') || REXML::XPath.first(x, '//details')
+        raise(RuntimeError, "Zoho Error Code #{code.text}: #{msg.text}.")
+      end
 
       return code.text unless code.nil?
       response.code
@@ -207,6 +221,7 @@ module ZohoApi
                           :headers => {'Content-length' => '0'})
       check_for_errors(r)
       x_r = REXML::Document.new(r.body).elements.to_a('//recorddetail')
+      x_r = REXML::Document.new(r.body).elements.to_a('//details') if x_r.empty?
       to_hash_with_id(x_r, module_name)[0]
     end
 

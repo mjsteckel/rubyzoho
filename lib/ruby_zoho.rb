@@ -11,7 +11,7 @@ module RubyZoho
       self.api_key = nil
       self.api = nil
       self.cache_fields = false
-      self.cache_path = File.join(File.dirname(__FILE__), '..', 'spec', 'fixtures')
+      self.cache_path = "." # File.join(File.dirname(__FILE__), '..', 'spec', 'fixtures')
       self.crm_modules = nil
       self.ignore_fields_with_bad_names = true
     end
